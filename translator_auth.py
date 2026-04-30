@@ -12,8 +12,13 @@ import mss
 import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk, ImageOps
+try:
+    from pykakasi import kakasi
+    KAKASI = kakasi()
+except:
+    KAKASI = None
 
-VERSION = "0.1.0-auth"
+VERSION = "0.2.1"
 
 LANG = {
     "ja": {
@@ -29,7 +34,7 @@ LANG = {
         "enter_key": "翻訳用のAPIキーを入力してください",
         "checking": "キーを確認中...",
         "invalid_key": "無効なキー: ",
-        "app_title": "JP/RU 翻訳機",
+        "app_title": "🐱 Neko Translator",
         "direction": "方向:",
         "ja_to_ru": "JP → RU",
         "ru_to_ja": "RU → JP",
@@ -74,7 +79,10 @@ LANG = {
         "formality_neutral": "ニュートラル",
         "formality_casual": "カジュアル",
         "formality_formal": "ポライト",
-        "formality_very_formal": "とてもポライト",
+        "romaji": "ローマ字",
+        "tooltip_text": "制限: 遅延1-3秒、頻繁な使用で一時停止の可能性。\n対応形式: desu/masu形のみ",
+        "save_key": "キーを保存",
+        "saved_key_loaded": "保存されたキーをロードしました",
     },
     "ru": {
         "auth_title": "Настройка API ключей",
@@ -89,7 +97,7 @@ LANG = {
         "enter_key": "Введите API ключ для перевода",
         "checking": "Проверяю ключи...",
         "invalid_key": "Неверный ключ: ",
-        "app_title": "JP/RU Переводчик",
+        "app_title": "🐱 Neko Translator",
         "direction": "Направление:",
         "ja_to_ru": "JP → RU",
         "ru_to_ja": "RU → JP",
@@ -134,7 +142,10 @@ LANG = {
         "formality_neutral": "Нейтральный",
         "formality_casual": "Дружеский",
         "formality_formal": "Вежливый",
-        "formality_very_formal": "Очень вежливый",
+        "romaji": "Ромадзи",
+        "tooltip_text": "Ограничения: задержка 1-3с, возможны временные блокировки при частых запросах.\nПоддерживается только форма desu/masu",
+        "save_key": "Сохранить ключ",
+        "saved_key_loaded": "Загружен сохранённый ключ",
     },
     "en": {
         "auth_title": "API Key Setup",
@@ -149,7 +160,7 @@ LANG = {
         "enter_key": "Enter translation API key",
         "checking": "Checking keys...",
         "invalid_key": "Invalid key: ",
-        "app_title": "JP/RU Translator",
+        "app_title": "🐱 Neko Translator",
         "direction": "Direction:",
         "ja_to_ru": "JP → RU",
         "ru_to_ja": "RU → JP",
@@ -194,7 +205,10 @@ LANG = {
         "formality_neutral": "Neutral",
         "formality_casual": "Casual",
         "formality_formal": "Polite",
-        "formality_very_formal": "Very Polite",
+        "romaji": "Romaji",
+        "tooltip_text": "Limits: 1-3s delay, possible temporary blocks on frequent requests.\nOnly desu/masu form supported",
+        "save_key": "Save Key",
+        "saved_key_loaded": "Loaded saved key",
     },
 }
 
@@ -202,11 +216,11 @@ FORMALITY_LEVELS = {
     "neutral": "formality_neutral",
     "casual": "formality_casual",
     "formal": "formality_formal",
-    "very_formal": "formality_very_formal",
 }
 
 HISTORY_FILE = "translation_history.json"
 LOG_FILE = "translator_debug.log"
+CONFIG_FILE = "config.json"
 MAX_HISTORY = 10
 
 TRANSLATE_API_KEY = ""
@@ -277,11 +291,39 @@ def translate_with_google(text, source, target):
     result = json.loads(response.read().decode("utf-8"))
     return result["data"]["translations"][0]["translatedText"]
 
+def translate_free(text, source, target):
+    try:
+        translator = GoogleTranslator(source=source, target=target)
+        return translator.translate(text)
+    except Exception as e:
+        raise Exception(f"Free API error: {e}")
+
 def translate_text(text, source, target, formality="default"):
     if TRANSLATE_PROVIDER == "deepl":
         return translate_with_deepl(text, source, target, formality)
-    else:
+    elif TRANSLATE_PROVIDER == "google":
         return translate_with_google(text, source, target)
+    else:
+        return translate_free(text, source, target)
+
+def save_config(provider, api_key, ocr_key, save_key):
+    try:
+        config = {}
+        if save_key:
+            config = {"provider": provider, "api_key": api_key, "ocr_key": ocr_key}
+        with open(CONFIG_FILE, "w", encoding="utf-8") as f:
+            json.dump(config, f, ensure_ascii=False, indent=2)
+    except:
+        pass
+
+def load_config():
+    if os.path.exists(CONFIG_FILE):
+        try:
+            with open(CONFIG_FILE, "r", encoding="utf-8") as f:
+                return json.load(f)
+        except:
+            pass
+    return {}
 
 def ocr_with_google_vision(image_b64):
     url = f"https://vision.googleapis.com/v1/images:annotate?key={OCR_API_KEY}"
@@ -310,6 +352,7 @@ class AuthWindow:
         self.root.resizable(False, False)
         self.root.configure(bg="#0f172a")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
+        self.saved_config = load_config()
         self._build_ui()
 
     def _build_ui(self):
@@ -354,14 +397,47 @@ class AuthWindow:
         provider_frame = tk.Frame(translate_inner, bg="#1e293b")
         provider_frame.pack(fill=tk.X, padx=(12, 0), pady=(0, 8))
 
-        tk.Radiobutton(provider_frame, text="DeepL", variable=self.translate_provider,
-                      value="deepl", bg="#1e293b", fg="#e2e8f0", selectcolor="#6366f1",
-                      activebackground="#1e293b", font=("Segoe UI", 9), bd=0, highlightthickness=0,
-                      command=self._update_provider_labels).pack(side=tk.LEFT, padx=(0, 20))
-        tk.Radiobutton(provider_frame, text="Google", variable=self.translate_provider,
-                      value="google", bg="#1e293b", fg="#e2e8f0", selectcolor="#6366f1",
-                      activebackground="#1e293b", font=("Segoe UI", 9), bd=0, highlightthickness=0,
-                      command=self._update_provider_labels).pack(side=tk.LEFT)
+        self.provider_var = tk.StringVar(value="public")
+        provider_frame = tk.Frame(translate_inner, bg="#1e293b")
+        provider_frame.pack(fill=tk.X, padx=(12, 0), pady=(0, 8))
+
+        self.provider_btns = {}
+        for p, label in [("deepl", "DeepL"), ("google", "Google"), ("public", "Google (free)")]:
+            btn = tk.Button(provider_frame, text=label, font=("Segoe UI", 9), bd=0, padx=10, pady=4,
+                           bg="#0f172a", fg="#64748b", activebackground="#334155", cursor="hand2",
+                           command=lambda prov=p: self._select_provider(prov))
+            btn.pack(side=tk.LEFT, padx=(0, 8))
+            self.provider_btns[p] = btn
+        
+        self.save_key_var = tk.BooleanVar(value=bool(self.saved_config.get("api_key")))
+        self.save_key_cb = tk.Checkbutton(provider_frame, text=t(self.ui_lang, "save_key"), variable=self.save_key_var,
+                                         bg="#1e293b", fg="#64748b", selectcolor="#0f172a", activebackground="#1e293b",
+                                         font=("Segoe UI", 8))
+        self.save_key_cb.pack(side=tk.RIGHT)
+        
+        self.info_icon = tk.Label(provider_frame, text="!", bg="#1e293b", fg="#f59e0b", 
+                                 font=("Segoe UI", 9, "bold"), cursor="hand2")
+        self.info_icon.pack(side=tk.LEFT, padx=(4, 0))
+        
+        self.tooltip_window = tk.Toplevel(self.root)
+        self.tooltip_window.withdraw()
+        self.tooltip_window.overrideredirect(True)
+        self.tooltip_label = tk.Label(self.tooltip_window, text="",
+                 bg="#1e293b", fg="#e2e8f0", font=("Segoe UI", 8), relief="solid", bd=1, padx=4, pady=2)
+        self.tooltip_label.pack()
+        
+        def show_tooltip(event):
+            self._update_tooltip_text()
+            x = self.info_icon.winfo_rootx() + 10
+            y = self.info_icon.winfo_rooty() + 20
+            self.tooltip_window.geometry(f"+{x}+{y}")
+            self.tooltip_window.deiconify()
+            
+        def hide_tooltip(event):
+            self.tooltip_window.withdraw()
+            
+        self.info_icon.bind("<Enter>", show_tooltip)
+        self.info_icon.bind("<Leave>", hide_tooltip)
 
         self.api_key_label = tk.Label(translate_inner, text=t(self.ui_lang, "api_key"),
                                       bg="#1e293b", fg="#64748b", font=("Segoe UI", 8))
@@ -410,13 +486,47 @@ class AuthWindow:
                                      command=self._confirm_and_start,
                                      bg="#6366f1", fg="white", font=("Segoe UI", 10, "bold"),
                                      bd=0, padx=24, pady=10, activebackground="#818cf8", cursor="hand2")
-        self.confirm_btn.pack(side=tk.LEFT, padx=(0, 12))
+        self.confirm_btn.pack(side=tk.LEFT)
+        
+        self._select_provider("public")
 
-        self.skip_ocr_btn = tk.Button(btn_frame, text=t(self.ui_lang, "skip_ocr"),
-                                      command=self._skip_ocr,
-                                      bg="#1e293b", fg="#94a3b8", font=("Segoe UI", 9),
-                                      bd=0, padx=14, pady=10, activebackground="#334155", cursor="hand2")
-        self.skip_ocr_btn.pack(side=tk.LEFT)
+    def _select_provider(self, provider):
+        self.provider_var.set(provider)
+        for p, btn in self.provider_btns.items():
+            if p == provider:
+                btn.config(bg="#6366f1", fg="white")
+            else:
+                btn.config(bg="#0f172a", fg="#64748b")
+        saved = self.saved_config
+        if provider == "deepl" and saved.get("provider") == "deepl" and saved.get("api_key"):
+            self.translate_key_entry.delete(0, tk.END)
+            self.translate_key_entry.insert(0, saved["api_key"])
+        elif provider == "google" and saved.get("provider") == "google" and saved.get("api_key"):
+            self.translate_key_entry.delete(0, tk.END)
+            self.translate_key_entry.insert(0, saved["api_key"])
+        if saved.get("ocr_key"):
+            self.ocr_key_entry.delete(0, tk.END)
+            self.ocr_key_entry.insert(0, saved["ocr_key"])
+        self._update_provider_ui()
+
+    def _update_tooltip_text(self):
+        self.tooltip_label.config(text=t(self.ui_lang, "tooltip_text"))
+
+    def _update_provider_ui(self):
+        provider = self.provider_var.get()
+        if provider == "public":
+            self.translate_key_entry.pack_forget()
+            self.api_key_label.pack_forget()
+            self.translate_hint.pack_forget()
+            self.tooltip_window.withdraw()
+        else:
+            self.api_key_label.pack(anchor="w", padx=(12, 0), pady=(4, 4))
+            self.translate_key_entry.pack(fill=tk.X, padx=(12, 12), pady=(0, 8))
+            if provider == "deepl":
+                self.translate_hint.config(text="fe86ec71-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx")
+            else:
+                self.translate_hint.config(text="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
+            self.translate_hint.pack(anchor="w", padx=(12, 0), pady=(0, 8))
 
     def _switch_lang(self):
         self.ui_lang = self.lang_var.get()
@@ -440,43 +550,54 @@ class AuthWindow:
         menu.add_command(label="Select All", command=lambda: widget.event_generate("<<SelectAll>>"))
         widget.bind("<Button-3>", lambda e: menu.tk_popup(e.x_root, e.y_root))
 
-    def _update_provider_labels(self):
-        if self.translate_provider.get() == "deepl":
-            self.translate_hint.config(text="fe86ec71-xxxx-xxxx-xxxx-xxxxxxxxxxxx:fx")
-        else:
-            self.translate_hint.config(text="AIzaSyxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx")
-
     def _confirm_and_start(self):
         global TRANSLATE_API_KEY, TRANSLATE_PROVIDER, OCR_API_KEY, OCR_PROVIDER
-
+        
+        provider = self.provider_var.get()
         translate_key = self.translate_key_entry.get().strip()
         ocr_key = self.ocr_key_entry.get().strip()
+        save_key = self.save_key_var.get()
 
-        if not translate_key:
-            self.status_label.config(text=t(self.ui_lang, "enter_key"), fg="#ef4444")
-            return
-
-        self.status_label.config(text=t(self.ui_lang, "checking"), fg="#f59e0b")
-        self.root.update()
-        self.confirm_btn.config(state="disabled")
-
-        translate_ok = False
-        translate_error = ""
-        try:
-            TRANSLATE_API_KEY = translate_key
-            TRANSLATE_PROVIDER = self.translate_provider.get()
-            if TRANSLATE_PROVIDER == "deepl":
-                translate_with_deepl("test", "en", "ru")
+        if provider != "public" and not translate_key:
+            saved = self.saved_config
+            if saved.get("provider") == provider and saved.get("api_key"):
+                translate_key = saved["api_key"]
             else:
-                translate_with_google("test", "en", "ru")
-            translate_ok = True
-        except Exception as e:
-            translate_error = str(e)
+                self.status_label.config(text=t(self.ui_lang, "enter_key"), fg="#ef4444")
+                return
 
-        if not translate_ok:
-            self.status_label.config(text=t(self.ui_lang, "invalid_key") + translate_error[:80], fg="#ef4444")
-            self.confirm_btn.config(state="normal")
-            return
+        if provider != "public" and not self.saved_config.get("api_key"):
+            self.status_label.config(text=t(self.ui_lang, "checking"), fg="#f59e0b")
+            self.root.update()
+            self.confirm_btn.config(state="disabled")
+
+            translate_ok = False
+            translate_error = ""
+            try:
+                TRANSLATE_API_KEY = translate_key
+                TRANSLATE_PROVIDER = provider
+                if provider == "deepl":
+                    translate_with_deepl("test", "en", "ru")
+                else:
+                    translate_with_google("test", "en", "ru")
+                translate_ok = True
+            except Exception as e:
+                translate_error = str(e)
+
+            if not translate_ok:
+                self.status_label.config(text=t(self.ui_lang, "invalid_key") + translate_error[:80], fg="#ef4444")
+                self.confirm_btn.config(state="normal")
+                return
+            
+            TRANSLATE_API_KEY = translate_key
+            TRANSLATE_PROVIDER = provider
+        else:
+            if provider != "public":
+                TRANSLATE_API_KEY = translate_key
+                TRANSLATE_PROVIDER = provider
+            else:
+                TRANSLATE_PROVIDER = "public"
+                TRANSLATE_API_KEY = ""
 
         if ocr_key:
             try:
@@ -490,31 +611,16 @@ class AuthWindow:
             except:
                 pass
 
-        TRANSLATE_API_KEY = translate_key
-        TRANSLATE_PROVIDER = self.translate_provider.get()
         OCR_API_KEY = ocr_key
         OCR_PROVIDER = "google" if ocr_key else ""
 
+        save_config(provider, translate_key, ocr_key, save_key)
+
         self._finish(True, bool(ocr_key))
-
-    def _skip_ocr(self):
-        global TRANSLATE_API_KEY, TRANSLATE_PROVIDER, OCR_API_KEY, OCR_PROVIDER
-
-        translate_key = self.translate_key_entry.get().strip()
-        if not translate_key:
-            self.status_label.config(text=t(self.ui_lang, "enter_key"), fg="#ef4444")
-            return
-
-        TRANSLATE_API_KEY = translate_key
-        TRANSLATE_PROVIDER = self.translate_provider.get()
-        OCR_API_KEY = ""
-        OCR_PROVIDER = ""
-
-        self._finish(True, False)
 
     def _finish(self, translate_ok, ocr_ok):
         self.root.destroy()
-        self.callback(translate_ok, ocr_ok, self.ui_lang)
+        self.callback(translate_ok, ocr_ok, self.ui_lang, self.provider_var.get())
 
     def on_close(self):
         self.root.destroy()
@@ -572,9 +678,10 @@ class RegionSelector:
         self.callback(None, None, None, None)
 
 class TranslatorApp:
-    def __init__(self, has_ocr, ui_lang="ja"):
+    def __init__(self, has_ocr, ui_lang="ja", provider="deepl"):
         self.root = tk.Tk()
         self.ui_lang = ui_lang
+        self.provider = provider
         self.root.title(t(self.ui_lang, "app_title") + f" {VERSION}")
         self.root.geometry("850x780")
         self.root.resizable(False, False)
@@ -668,10 +775,14 @@ class TranslatorApp:
         self.form_label = tk.Label(controls, text=t(self.ui_lang, "style"), bg="#0f172a", fg="#64748b", font=("Segoe UI", 9))
         self.form_label.pack(side=tk.LEFT, padx=(0, 8))
 
-        formality_values = [t(self.ui_lang, v) for v in ["formality_neutral", "formality_casual", "formality_formal", "formality_very_formal"]]
+        formality_values = [t(self.ui_lang, v) for v in ["formality_casual", "formality_formal"]]
         self.formality_combo = ttk.Combobox(controls, state="readonly", values=formality_values, width=14)
-        self.formality_combo.current(0)
+        self.formality_combo.current(1)
         self.formality_combo.pack(side=tk.LEFT, padx=(0, 16))
+
+        if self.provider == "public":
+            self.form_label.pack_forget()
+            self.formality_combo.pack_forget()
 
         if self.has_ocr:
             self.ocr_btn = tk.Button(controls, text=t(self.ui_lang, "select_area"), command=self.start_region_select,
@@ -748,6 +859,22 @@ class TranslatorApp:
                                       padx=8, pady=6)
         self.translated_text.pack(fill=tk.X, pady=(0, 6))
 
+        romaji_frame = tk.Frame(main, bg="#0f172a")
+        romaji_frame.pack(fill=tk.X, pady=(0, 6))
+
+        self.romaji_btn = tk.Button(romaji_frame, text=t(self.ui_lang, "romaji"), command=self._to_romaji,
+                 bg="#0f172a", fg="#818cf8", font=("Segoe UI", 9), bd=0, padx=12, pady=3,
+                 activebackground="#1e293b", cursor="hand2")
+        self.romaji_btn.pack(side=tk.LEFT)
+        self.romaji_btn.bind("<Enter>", lambda e: self.romaji_btn.config(fg="#a5b4fc"))
+        self.romaji_btn.bind("<Leave>", lambda e: self.romaji_btn.config(fg="#818cf8"))
+
+        self.romaji_text = tk.Text(main, height=2, wrap=tk.WORD, font=("Segoe UI", 9),
+                                  bg="#0f172a", fg="#64748b", bd=0, highlightthickness=0,
+                                  padx=8, pady=4)
+        self.romaji_text.pack(fill=tk.X, pady=(0, 6))
+        self.romaji_text.pack_forget()
+
         reverse_frame = tk.Frame(main, bg="#0f172a")
         reverse_frame.pack(fill=tk.X)
 
@@ -795,13 +922,15 @@ class TranslatorApp:
         self.form_label.config(text=t(self.ui_lang, "style"))
 
         current_formality_idx = self.formality_combo.current()
-        formality_values = [t(self.ui_lang, v) for v in ["formality_neutral", "formality_casual", "formality_formal", "formality_very_formal"]]
+        formality_values = [t(self.ui_lang, v) for v in ["formality_casual", "formality_formal"]]
         self.formality_combo.config(values=formality_values)
         if 0 <= current_formality_idx < len(formality_values):
             self.formality_combo.current(current_formality_idx)
 
         if self.has_ocr:
             self.ocr_btn.config(text=t(self.ui_lang, "select_area"))
+        if self.provider != "public":
+            self.form_label.config(text=t(self.ui_lang, "style"))
         self.preview_label.config(text=t(self.ui_lang, "preview"))
         self.recognize_btn.config(text=t(self.ui_lang, "recognize"))
         self.cancel_ocr_btn.config(text=t(self.ui_lang, "cancel"))
@@ -809,6 +938,7 @@ class TranslatorApp:
         self.translate_btn.config(text=t(self.ui_lang, "translate"))
         self.clear_input_btn.config(text=t(self.ui_lang, "clear"))
         self.switch_dir_btn.config(text=t(self.ui_lang, "switch_dir"))
+        self.romaji_btn.config(text=t(self.ui_lang, "romaji"))
         self.results_label.config(text=t(self.ui_lang, "result"))
         self.history_label.config(text=t(self.ui_lang, "history"))
         self.clear_history_btn.config(text=t(self.ui_lang, "clear_history"))
@@ -851,6 +981,25 @@ class TranslatorApp:
         text = self.translated_text.get("1.0", tk.END).strip()
         if text:
             self._copy_to_clipboard(text)
+
+    def _to_romaji(self):
+        if KAKASI is None:
+            self.status.set("pykakasi not installed")
+            return
+        text = self.translated_text.get("1.0", tk.END).strip()
+        if not text:
+            return
+        has_ja = any('\u3040' <= c <= '\u309f' or '\u30a0' <= c <= '\u30ff' or '\u4e00' <= c <= '\u9fff' for c in text)
+        if not has_ja:
+            self.status.set("No Japanese text to convert")
+            return
+        result = KAKASI.convert(text)
+        romaji = " ".join([item["hepburn"] for item in result])
+        self.romaji_text.delete("1.0", tk.END)
+        self.romaji_text.insert("1.0", romaji)
+        self.romaji_text.pack(fill=tk.X, pady=(0, 6))
+        self.status.set("Converted to Romaji")
+        self.root.after(2000, lambda: self.status.set(t(self.ui_lang, "ready")))
 
     def _create_tray(self):
         try:
@@ -903,20 +1052,21 @@ class TranslatorApp:
         try:
             direction = self.direction.get()
             style_key = self.formality_combo.get()
-            style_map = {t(self.ui_lang, "formality_casual"): "less", t(self.ui_lang, "formality_formal"): "more",
-                        t(self.ui_lang, "formality_very_formal"): "more"}
+            style_map = {t(self.ui_lang, "formality_casual"): "less", t(self.ui_lang, "formality_formal"): "more"}
             formality = style_map.get(style_key, "default")
-
+            
+            _log(f"Direction: {direction}, Style: {style_key}, Formality: {formality}")
+            
             if direction == "ru-ja":
                 result = translate_text(text, "ru", "ja", formality)
             else:
-                result = translate_text(text, "ja", "ru", "default")
-
+                result = translate_text(text, "ja", "ru", formality)
+            
             if direction == "ru-ja":
-                reverse = translate_text(result, "ja", "ru", "default")
+                reverse = translate_text(result, "ja", "ru", formality)
                 formality_info = self._analyze_formality(result)
             else:
-                reverse = translate_text(result, "ru", "ja", formality)
+                reverse = translate_text(result, "ru", "ja", "default")
                 formality_info = self._analyze_formality(result)
 
             self.history.insert(0, {
@@ -1036,18 +1186,21 @@ class TranslatorApp:
             _log(f"OCR found: {original[:100]}...")
             direction = self.direction.get()
             style_key = self.formality_combo.get()
-            style_map = {t(self.ui_lang, "formality_casual"): "less", t(self.ui_lang, "formality_formal"): "more",
-                        t(self.ui_lang, "formality_very_formal"): "more"}
+            style_map = {t(self.ui_lang, "formality_casual"): "less", t(self.ui_lang, "formality_formal"): "more"}
             formality = style_map.get(style_key, "default")
+            
+            _log(f"OCR Direction: {direction}, Style: {style_key}, Formality: {formality}")
+            
             if direction == "ru-ja":
                 result = translate_text(original, "ru", "ja", formality)
             else:
-                result = translate_text(original, "ja", "ru", "default")
+                result = translate_text(original, "ja", "ru", formality)
+            
             if direction == "ru-ja":
-                reverse = translate_text(result, "ja", "ru", "default")
+                reverse = translate_text(result, "ja", "ru", formality)
                 formality_info = self._analyze_formality(result)
             else:
-                reverse = translate_text(result, "ru", "ja", formality)
+                reverse = translate_text(result, "ru", "ja", "default")
                 formality_info = self._analyze_formality(result)
             self.history.insert(0, {
                 "source": original,
@@ -1072,9 +1225,9 @@ class TranslatorApp:
         sys.exit()
 
 def main():
-    def on_auth_complete(translate_ok, ocr_ok, ui_lang):
+    def on_auth_complete(translate_ok, ocr_ok, ui_lang, provider):
         if translate_ok:
-            app = TranslatorApp(ocr_ok, ui_lang)
+            app = TranslatorApp(ocr_ok, ui_lang, provider)
             app.root.mainloop()
     auth = AuthWindow(on_auth_complete)
     auth.root.mainloop()
