@@ -14,17 +14,69 @@ from tkinter import ttk
 from PIL import Image, ImageTk, ImageOps
 try:
     from deep_translator import GoogleTranslator
-    HAS_DEEP_TRANSLATOR = True
 except:
-    HAS_DEEP_TRANSLATOR = False
+    GoogleTranslator = None
 
-try:
-    from pykakasi import kakasi
-    KAKASI = kakasi()
-except:
-    KAKASI = None
+VERSION = "0.2.4"
 
-VERSION = "0.2.1"
+HIRAGANA_ROMAJI = {
+    'あ': 'a', 'い': 'i', 'う': 'u', 'え': 'e', 'お': 'o',
+    'か': 'ka', 'き': 'ki', 'く': 'ku', 'け': 'ke', 'こ': 'ko',
+    'さ': 'sa', 'し': 'shi', 'す': 'su', 'せ': 'se', 'そ': 'so',
+    'た': 'ta', 'ち': 'chi', 'つ': 'tsu', 'て': 'te', 'と': 'to',
+    'な': 'na', 'に': 'ni', 'ぬ': 'nu', 'ね': 'ne', 'の': 'no',
+    'は': 'ha', 'ひ': 'hi', 'ふ': 'fu', 'へ': 'he', 'ほ': 'ho',
+    'ま': 'ma', 'み': 'mi', 'む': 'mu', 'め': 'me', 'も': 'mo',
+    'や': 'ya', 'ゆ': 'yu', 'よ': 'yo',
+    'ら': 'ra', 'り': 'ri', 'る': 'ru', 'れ': 're', 'ろ': 'ro',
+    'わ': 'wa', 'を': 'wo', 'ん': 'n',
+    'が': 'ga', 'ぎ': 'gi', 'ぐ': 'gu', 'げ': 'ge', 'ご': 'go',
+    'ざ': 'za', 'じ': 'ji', 'ず': 'zu', 'ぜ': 'ze', 'ぞ': 'zo',
+    'だ': 'da', 'ぢ': 'ji', 'づ': 'zu', 'で': 'de', 'ど': 'do',
+    'ば': 'ba', 'び': 'bi', 'ぶ': 'bu', 'べ': 'be', 'ぼ': 'bo',
+    'ぱ': 'pa', 'ぴ': 'pi', 'ぷ': 'pu', 'ぺ': 'pe', 'ぽ': 'po',
+}
+
+KATAKANA_ROMAJI = {
+    'ア': 'a', 'イ': 'i', 'ウ': 'u', 'エ': 'e', 'オ': 'o',
+    'カ': 'ka', 'キ': 'ki', 'ク': 'ku', 'ケ': 'ke', 'コ': 'ko',
+    'サ': 'sa', 'シ': 'shi', 'ス': 'su', 'セ': 'se', 'ソ': 'so',
+    'タ': 'ta', 'チ': 'chi', 'ツ': 'tsu', 'テ': 'te', 'ト': 'to',
+    'ナ': 'na', 'ニ': 'ni', 'ヌ': 'nu', 'ネ': 'ne', 'ノ': 'no',
+    'ハ': 'ha', 'ヒ': 'hi', 'フ': 'fu', 'ヘ': 'he', 'ホ': 'ho',
+    'マ': 'ma', 'ミ': 'mi', 'ム': 'mu', 'メ': 'me', 'モ': 'mo',
+    'ヤ': 'ya', 'ユ': 'yu', 'ヨ': 'yo',
+    'ラ': 'ra', 'リ': 'ri', 'ル': 'ru', 'レ': 're', 'ロ': 'ro',
+    'ワ': 'wa', 'ヲ': 'wo', 'ン': 'n',
+    'ガ': 'ga', 'ギ': 'gi', 'グ': 'gu', 'ゲ': 'ge', 'ゴ': 'go',
+    'ザ': 'za', 'ジ': 'ji', 'ズ': 'zu', 'ゼ': 'ze', 'ゾ': 'zo',
+    'ダ': 'da', 'ヂ': 'ji', 'ヅ': 'zu', 'デ': 'de', 'ド': 'do',
+    'バ': 'ba', 'ビ': 'bi', 'ブ': 'bu', 'ベ': 'be', 'ボ': 'bo',
+    'パ': 'pa', 'ピ': 'pi', 'プ': 'pu', 'ペ': 'pe', 'ポ': 'po',
+}
+
+def text_to_romaji(text):
+    result = []
+    i = 0
+    while i < len(text):
+        c = text[i]
+        if c in HIRAGANA_ROMAJI:
+            result.append(HIRAGANA_ROMAJI[c])
+        elif c in KATAKANA_ROMAJI:
+            result.append(KATAKANA_ROMAJI[c])
+        elif c == 'ー':
+            if result:
+                result[-1] += result[-1][-1]
+        elif c in '.,!?;:()[]{}""''':
+            result.append(c)
+        elif c == ' ':
+            result.append(' ')
+        elif '\u4e00' <= c <= '\u9fff':
+            result.append(c)
+        else:
+            result.append(c)
+        i += 1
+    return ' '.join(result)
 
 LANG = {
     "ja": {
@@ -298,7 +350,7 @@ def translate_with_google(text, source, target):
     return result["data"]["translations"][0]["translatedText"]
 
 def translate_free(text, source, target):
-    if not HAS_DEEP_TRANSLATOR:
+    if GoogleTranslator is None:
         raise Exception("deep-translator library not installed. Run: pip install deep-translator")
     try:
         translator = GoogleTranslator(source=source, target=target)
@@ -963,35 +1015,28 @@ class TranslatorApp:
             self._copy_to_clipboard(text)
 
     def _to_romaji(self):
-        if KAKASI is None:
-            self.status.set("Romaji conversion unavailable (pykakasi not installed)")
-            self.root.after(3000, lambda: self.status.set(t(self.ui_lang, "ready")))
-            return
         text = self.translated_text.get("1.0", tk.END).strip()
         if not text:
             return
-        has_ja = any('\u3040' <= c <= '\u309f' or '\u30a0' <= c <= '\u30ff' or '\u4e00' <= c <= '\u9fff' for c in text)
+        has_ja = any('\u3040' <= c <= '\u309f' or '\u30a0' <= c <= '\u30ff' for c in text)
         if not has_ja:
             self.status.set("No Japanese text to convert")
             self.root.after(2000, lambda: self.status.set(t(self.ui_lang, "ready")))
             return
-        try:
-            result = KAKASI.convert(text)
-            romaji = " ".join([item["hepburn"] for item in result])
-            self.romaji_text.delete("1.0", tk.END)
-            self.romaji_text.insert("1.0", romaji)
-            self.romaji_text.pack(fill=tk.X, pady=(0, 6))
-            self.status.set("Converted to Romaji")
-            self.root.after(3000, lambda: self.status.set(t(self.ui_lang, "ready")))
-        except Exception as e:
-            self.status.set(f"Romaji error: {e}")
-            self.root.after(3000, lambda: self.status.set(t(self.ui_lang, "ready")))
+        romaji = text_to_romaji(text)
+        self.romaji_text.delete("1.0", tk.END)
+        self.romaji_text.insert("1.0", romaji)
+        self.romaji_text.pack(fill=tk.X, pady=(0, 6))
+        self.status.set("Converted to Romaji")
+        self.root.after(3000, lambda: self.status.set(t(self.ui_lang, "ready")))
 
     def _create_tray(self):
         try:
             from infi.systray import SysTrayIcon
+            base_path = getattr(sys, '_MEIPASS', os.path.dirname(os.path.abspath(__file__)))
+            icon_path = os.path.join(base_path, 'neko_icon.ico')
             menu_items = [(t(self.ui_lang, "app_title"), self.show_window), ("Exit", self.quit_app)]
-            self.tray = SysTrayIcon("neko_icon.ico", t(self.ui_lang, "app_title"), menu_items)
+            self.tray = SysTrayIcon(icon_path, t(self.ui_lang, "app_title"), menu_items)
             self.tray.start()
         except:
             pass
