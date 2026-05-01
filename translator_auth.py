@@ -13,6 +13,12 @@ import tkinter as tk
 from tkinter import ttk
 from PIL import Image, ImageTk, ImageOps
 try:
+    from deep_translator import GoogleTranslator
+    HAS_DEEP_TRANSLATOR = True
+except:
+    HAS_DEEP_TRANSLATOR = False
+
+try:
     from pykakasi import kakasi
     KAKASI = kakasi()
 except:
@@ -34,7 +40,7 @@ LANG = {
         "enter_key": "翻訳用のAPIキーを入力してください",
         "checking": "キーを確認中...",
         "invalid_key": "無効なキー: ",
-        "app_title": "🐱 Neko Translator",
+        "app_title": "Neko Translator",
         "direction": "方向:",
         "ja_to_ru": "JP → RU",
         "ru_to_ja": "RU → JP",
@@ -97,7 +103,7 @@ LANG = {
         "enter_key": "Введите API ключ для перевода",
         "checking": "Проверяю ключи...",
         "invalid_key": "Неверный ключ: ",
-        "app_title": "🐱 Neko Translator",
+        "app_title": "Neko Translator",
         "direction": "Направление:",
         "ja_to_ru": "JP → RU",
         "ru_to_ja": "RU → JP",
@@ -160,7 +166,7 @@ LANG = {
         "enter_key": "Enter translation API key",
         "checking": "Checking keys...",
         "invalid_key": "Invalid key: ",
-        "app_title": "🐱 Neko Translator",
+        "app_title": "Neko Translator",
         "direction": "Direction:",
         "ja_to_ru": "JP → RU",
         "ru_to_ja": "RU → JP",
@@ -292,9 +298,14 @@ def translate_with_google(text, source, target):
     return result["data"]["translations"][0]["translatedText"]
 
 def translate_free(text, source, target):
+    if not HAS_DEEP_TRANSLATOR:
+        raise Exception("deep-translator library not installed. Run: pip install deep-translator")
     try:
         translator = GoogleTranslator(source=source, target=target)
-        return translator.translate(text)
+        result = translator.translate(text)
+        if not result:
+            raise Exception("Empty translation result")
+        return result
     except Exception as e:
         raise Exception(f"Free API error: {e}")
 
@@ -348,7 +359,7 @@ class AuthWindow:
         self.ui_lang = "ja"
         self.root = tk.Tk()
         self.root.title(t(self.ui_lang, "auth_title"))
-        self.root.geometry("500x580")
+        self.root.geometry("540x750")
         self.root.resizable(False, False)
         self.root.configure(bg="#0f172a")
         self.root.protocol("WM_DELETE_WINDOW", self.on_close)
@@ -362,7 +373,7 @@ class AuthWindow:
         lang_frame = tk.Frame(main, bg="#0f172a")
         lang_frame.pack(fill=tk.X, pady=(0, 8))
         tk.Label(lang_frame, text=t(self.ui_lang, "lang_label"), bg="#0f172a", fg="#64748b",
-                font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(0, 6))
+                font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(0, 6))
         self.lang_var = tk.StringVar(value="ja")
         lang_combo = ttk.Combobox(lang_frame, state="readonly", values=["ja", "ru", "en"],
                                   textvariable=self.lang_var, width=8)
@@ -390,7 +401,7 @@ class AuthWindow:
         translate_inner.pack(fill=tk.X)
 
         self.provider_label = tk.Label(translate_inner, text=t(self.ui_lang, "provider"),
-                                       bg="#1e293b", fg="#64748b", font=("Segoe UI", 8))
+                                       bg="#1e293b", fg="#64748b", font=("Segoe UI", 9))
         self.provider_label.pack(anchor="w", padx=(12, 0), pady=(8, 4))
 
         self.translate_provider = tk.StringVar(value="deepl")
@@ -412,7 +423,7 @@ class AuthWindow:
         self.save_key_var = tk.BooleanVar(value=bool(self.saved_config.get("api_key")))
         self.save_key_cb = tk.Checkbutton(provider_frame, text=t(self.ui_lang, "save_key"), variable=self.save_key_var,
                                          bg="#1e293b", fg="#64748b", selectcolor="#0f172a", activebackground="#1e293b",
-                                         font=("Segoe UI", 8))
+                                          font=("Segoe UI", 9))
         self.save_key_cb.pack(side=tk.RIGHT)
         
         self.info_icon = tk.Label(provider_frame, text="!", bg="#1e293b", fg="#f59e0b", 
@@ -423,7 +434,7 @@ class AuthWindow:
         self.tooltip_window.withdraw()
         self.tooltip_window.overrideredirect(True)
         self.tooltip_label = tk.Label(self.tooltip_window, text="",
-                 bg="#1e293b", fg="#e2e8f0", font=("Segoe UI", 8), relief="solid", bd=1, padx=4, pady=2)
+                  bg="#1e293b", fg="#e2e8f0", font=("Segoe UI", 9), relief="solid", bd=1, padx=4, pady=2)
         self.tooltip_label.pack()
         
         def show_tooltip(event):
@@ -683,7 +694,7 @@ class TranslatorApp:
         self.ui_lang = ui_lang
         self.provider = provider
         self.root.title(t(self.ui_lang, "app_title") + f" {VERSION}")
-        self.root.geometry("850x780")
+        self.root.geometry("900x900")
         self.root.resizable(False, False)
         self.root.configure(bg="#0f172a")
 
@@ -714,40 +725,40 @@ class TranslatorApp:
         self.style.configure("TLabelframe", background="#0f172a", borderwidth=0)
         self.style.configure("TLabelframe.Label", background="#0f172a", foreground="#818cf8",
                             font=("Segoe UI", 10, "bold"))
-        self.style.configure("TLabel", background="#0f172a", foreground="#94a3b8", font=("Segoe UI", 9))
+        self.style.configure("TLabel", background="#0f172a", foreground="#94a3b8", font=("Segoe UI", 10))
         self.style.configure("Accent.TLabel", background="#0f172a", foreground="#818cf8", font=("Segoe UI", 9, "bold"))
-        self.style.configure("TButton", background="#6366f1", foreground="white", font=("Segoe UI", 9),
+        self.style.configure("TButton", background="#6366f1", foreground="white", font=("Segoe UI", 10),
                             borderwidth=0, focuscolor="none", padding=(12, 6))
         self.style.map("TButton", background=[("active", "#818cf8"), ("pressed", "#4f46e5")])
-        self.style.configure("Secondary.TButton", background="#0f172a", foreground="#64748b", font=("Segoe UI", 9),
+        self.style.configure("Secondary.TButton", background="#0f172a", foreground="#64748b", font=("Segoe UI", 10),
                             borderwidth=0, focuscolor="none", padding=(8, 4))
         self.style.map("Secondary.TButton", background=[("active", "#1e293b")], foreground=[("active", "#94a3b8")])
-        self.style.configure("Success.TButton", background="#10b981", foreground="white", font=("Segoe UI", 9),
+        self.style.configure("Success.TButton", background="#10b981", foreground="white", font=("Segoe UI", 10),
                             borderwidth=0, focuscolor="none", padding=(12, 6))
         self.style.map("Success.TButton", background=[("active", "#34d399")])
-        self.style.configure("Danger.TButton", background="#0f172a", foreground="#ef4444", font=("Segoe UI", 9),
+        self.style.configure("Danger.TButton", background="#0f172a", foreground="#ef4444", font=("Segoe UI", 10),
                             borderwidth=0, focuscolor="none", padding=(8, 4))
         self.style.map("Danger.TButton", foreground=[("active", "#f87171")])
-        self.style.configure("TRadiobutton", background="#0f172a", foreground="#94a3b8", font=("Segoe UI", 9))
+        self.style.configure("TRadiobutton", background="#0f172a", foreground="#94a3b8", font=("Segoe UI", 10))
         self.style.configure("TCombobox", fieldbackground="#1e293b", background="#1e293b",
-                            foreground="#e2e8f0", borderwidth=0, arrowcolor="#818cf8", font=("Segoe UI", 9))
+                            foreground="#e2e8f0", borderwidth=0, arrowcolor="#818cf8", font=("Segoe UI", 10))
         self.style.map("TCombobox", fieldbackground=[("readonly", "#1e293b")])
 
     def _build_ui(self):
-        main = tk.Frame(self.root, bg="#0f172a", padx=20, pady=15)
+        main = tk.Frame(self.root, bg="#0f172a", padx=24, pady=20)
         main.pack(fill=tk.BOTH, expand=True)
 
         header = tk.Frame(main, bg="#0f172a")
-        header.pack(fill=tk.X, pady=(0, 12))
+        header.pack(fill=tk.X, pady=(0, 16))
 
-        self.app_title_label = tk.Label(header, text="  " + t(self.ui_lang, "app_title"), font=("Segoe UI", 14, "bold"),
+        self.app_title_label = tk.Label(header, text="  " + t(self.ui_lang, "app_title"), font=("Segoe UI", 16, "bold"),
                 bg="#0f172a", fg="#e2e8f0")
         self.app_title_label.pack(side=tk.LEFT)
 
         lang_frame = tk.Frame(header, bg="#0f172a")
         lang_frame.pack(side=tk.RIGHT)
         tk.Label(lang_frame, text=t(self.ui_lang, "lang_label"), bg="#0f172a", fg="#64748b",
-                font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(0, 4))
+                font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(0, 6))
         self.lang_var = tk.StringVar(value=self.ui_lang)
         lang_combo = ttk.Combobox(lang_frame, state="readonly", values=["ja", "ru", "en"],
                                   textvariable=self.lang_var, width=7)
@@ -755,7 +766,7 @@ class TranslatorApp:
         lang_combo.bind("<<ComboboxSelected>>", lambda e: self._switch_lang())
 
         controls = tk.Frame(main, bg="#0f172a")
-        controls.pack(fill=tk.X, pady=(0, 10))
+        controls.pack(fill=tk.X, pady=(0, 14))
 
         self.dir_label = tk.Label(controls, text=t(self.ui_lang, "direction"), bg="#0f172a", fg="#64748b", font=("Segoe UI", 9))
         self.dir_label.pack(side=tk.LEFT, padx=(0, 8))
@@ -791,7 +802,7 @@ class TranslatorApp:
             self.ocr_btn.pack(side=tk.RIGHT)
 
         self.preview_frame = tk.Frame(main, bg="#0f172a")
-        self.preview_frame.pack(fill=tk.X, pady=(0, 8))
+        self.preview_frame.pack(fill=tk.X, pady=(0, 10))
         self.preview_frame.pack_forget()
 
         preview_header = tk.Frame(self.preview_frame, bg="#0f172a")
@@ -801,7 +812,7 @@ class TranslatorApp:
                 font=("Segoe UI", 9, "bold"))
         self.preview_label.pack(side=tk.LEFT)
 
-        self.preview_canvas = tk.Canvas(self.preview_frame, height=120, bg="#1e293b",
+        self.preview_canvas = tk.Canvas(self.preview_frame, height=140, bg="#1e293b",
                                        highlightthickness=0, bd=0)
         self.preview_canvas.pack(fill=tk.X, pady=(4, 6))
 
@@ -821,14 +832,14 @@ class TranslatorApp:
                               font=("Segoe UI", 9, "bold"))
         self.input_label.pack(anchor="w", pady=(0, 4))
 
-        self.manual_text = tk.Text(main, height=3, wrap=tk.WORD, font=("Segoe UI", 10),
+        self.manual_text = tk.Text(main, height=4, wrap=tk.WORD, font=("Segoe UI", 11),
                                   bg="#1e293b", fg="#e2e8f0", insertbackground="#818cf8",
                                   bd=0, highlightthickness=0, selectbackground="#6366f1",
-                                  selectforeground="white", padx=8, pady=6)
+                                   selectforeground="white", padx=10, pady=8)
         self.manual_text.pack(fill=tk.X, pady=(0, 6))
 
         input_actions = tk.Frame(main, bg="#0f172a")
-        input_actions.pack(fill=tk.X, pady=(0, 10))
+        input_actions.pack(fill=tk.X, pady=(0, 12))
 
         self.translate_btn = tk.Button(input_actions, text=t(self.ui_lang, "translate"), command=self.translate_manual,
                  bg="#6366f1", fg="white", font=("Segoe UI", 9), bd=0, padx=12, pady=3,
@@ -847,16 +858,16 @@ class TranslatorApp:
                                 font=("Segoe UI", 9, "bold"))
         self.results_label.pack(anchor="w", pady=(0, 4))
 
-        self.original_text = tk.Text(main, height=5, wrap=tk.WORD, font=("Segoe UI", 10),
+        self.original_text = tk.Text(main, height=5, wrap=tk.WORD, font=("Segoe UI", 11),
                                     bg="#1e293b", fg="#e2e8f0", bd=0, highlightthickness=0,
                                     selectbackground="#6366f1", selectforeground="white",
-                                    padx=8, pady=6)
+                                      padx=10, pady=8)
         self.original_text.pack(fill=tk.X, pady=(0, 6))
 
-        self.translated_text = tk.Text(main, height=5, wrap=tk.WORD, font=("Segoe UI", 10),
+        self.translated_text = tk.Text(main, height=5, wrap=tk.WORD, font=("Segoe UI", 11),
                                       bg="#1e293b", fg="#e2e8f0", bd=0, highlightthickness=0,
                                       selectbackground="#6366f1", selectforeground="white",
-                                      padx=8, pady=6)
+                                    padx=10, pady=8)
         self.translated_text.pack(fill=tk.X, pady=(0, 6))
 
         romaji_frame = tk.Frame(main, bg="#0f172a")
@@ -888,14 +899,14 @@ class TranslatorApp:
         self.formality_label.pack(anchor="w", pady=(2, 0))
 
         history_header = tk.Frame(main, bg="#0f172a")
-        history_header.pack(fill=tk.X, pady=(10, 4))
+        history_header.pack(fill=tk.X, pady=(14, 6))
 
         self.history_label = tk.Label(history_header, text=t(self.ui_lang, "history"), bg="#0f172a", fg="#818cf8",
                 font=("Segoe UI", 9, "bold"))
         self.history_label.pack(side=tk.LEFT)
 
         self.clear_history_btn = tk.Button(history_header, text=t(self.ui_lang, "clear_history"), command=self._clear_history,
-                 bg="#0f172a", fg="#ef4444", font=("Segoe UI", 8), bd=0, padx=8, pady=2,
+                  bg="#0f172a", fg="#ef4444", font=("Segoe UI", 9), bd=0, padx=8, pady=2,
                  activebackground="#1e293b", cursor="hand2")
         self.clear_history_btn.pack(side=tk.RIGHT)
 
@@ -905,10 +916,10 @@ class TranslatorApp:
         self._update_history_display()
 
         status_bar = tk.Frame(main, bg="#0f172a")
-        status_bar.pack(fill=tk.X, pady=(8, 0))
+        status_bar.pack(fill=tk.X, pady=(10, 0))
 
         tk.Label(status_bar, textvariable=self.status, bg="#0f172a", fg="#64748b",
-                font=("Segoe UI", 8)).pack(side=tk.LEFT)
+                 font=("Segoe UI", 9)).pack(side=tk.LEFT)
 
     def _switch_lang(self):
         self.ui_lang = self.lang_var.get()
@@ -956,12 +967,12 @@ class TranslatorApp:
             item_frame = tk.Frame(self.history_frame, bg="#1e293b", bd=0)
             item_frame.pack(fill=tk.X, pady=(0, 4))
             tk.Label(item_frame, text=f"{item['source'][:30]}...", bg="#1e293b", fg="#94a3b8",
-                    font=("Segoe UI", 8), anchor="w", width=30).pack(side=tk.LEFT, padx=(8, 8), pady=4)
-            tk.Label(item_frame, text="→", bg="#1e293b", fg="#6366f1", font=("Segoe UI", 8)).pack(side=tk.LEFT, padx=(0, 8))
+                     font=("Segoe UI", 9), anchor="w", width=30).pack(side=tk.LEFT, padx=(8, 8), pady=4)
+            tk.Label(item_frame, text="→", bg="#1e293b", fg="#6366f1", font=("Segoe UI", 9)).pack(side=tk.LEFT, padx=(0, 8))
             tk.Label(item_frame, text=f"{item['target'][:30]}...", bg="#1e293b", fg="#e2e8f0",
-                    font=("Segoe UI", 8), anchor="w").pack(side=tk.LEFT, padx=(0, 8))
+                     font=("Segoe UI", 9), anchor="w").pack(side=tk.LEFT, padx=(0, 8))
             tk.Button(item_frame, text="📋", command=lambda t=item['target']: self._copy_to_clipboard(t),
-                     bg="#1e293b", fg="#64748b", font=("Segoe UI", 8), bd=0, padx=4, pady=2,
+                      bg="#1e293b", fg="#64748b", font=("Segoe UI", 9), bd=0, padx=4, pady=2,
                      activebackground="#334155", cursor="hand2").pack(side=tk.RIGHT, padx=(0, 8))
 
     def _clear_history(self):
@@ -1005,7 +1016,7 @@ class TranslatorApp:
         try:
             from infi.systray import SysTrayIcon
             menu_items = [(t(self.ui_lang, "app_title"), self.show_window), ("Exit", self.quit_app)]
-            self.tray = SysTrayIcon("translator_icon.ico", t(self.ui_lang, "app_title"), menu_items)
+            self.tray = SysTrayIcon("neko_icon.ico", t(self.ui_lang, "app_title"), menu_items)
             self.tray.start()
         except:
             pass
@@ -1116,9 +1127,10 @@ class TranslatorApp:
         self.status.set(t(self.ui_lang, "select_region"))
         def on_region_selected(x1, y1, x2, y2):
             if x1 is None:
-                self.root.after(0, lambda: self.status.set(t(self.ui_lang, "cancelled")))
+                self.status.set(t(self.ui_lang, "cancelled"))
                 return
-            self.root.after(0, lambda: self.status.set(t(self.ui_lang, "capturing")))
+            self.status.set(t(self.ui_lang, "capturing"))
+            self.root.update_idletasks()
             with mss.mss() as sct:
                 monitor = {"top": y1, "left": x1, "width": x2-x1, "height": y2-y1}
                 screenshot_data = sct.grab(monitor)
@@ -1136,7 +1148,7 @@ class TranslatorApp:
         self.preview_photo = ImageTk.PhotoImage(img_resized)
         self.preview_canvas.delete("all")
         self.preview_canvas.create_image(0, 0, anchor="nw", image=self.preview_photo)
-        self.preview_frame.pack(fill=tk.X, pady=(0, 8))
+        self.preview_frame.pack(fill=tk.X, pady=(0, 10))
         self.status.set(t(self.ui_lang, "region_selected"))
 
     def _confirm_ocr(self):
